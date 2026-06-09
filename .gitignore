@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# All above are default from GitHub
+# Below are the custom excludes
+
+# YouTube videos database
+*.db
+
+# Channel list file
+channels.json
