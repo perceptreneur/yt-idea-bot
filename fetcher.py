@@ -1,6 +1,7 @@
 # package imports
 import os
 import sys
+import time
 import requests
 from dotenv import load_dotenv
 from google import genai
@@ -168,16 +169,20 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
       )
     )
 
-    #print(response.text)
     return response.text
 
   except Exception as e:
     print(f"[FECTHER] Error trying to analyze comments with Gemini: {e}")
     return ""
 
-# 
+# sends the analysis to Discord
 # -----------------------------------------------------------------------------
-def send_result_to_discord(parsed_data: str, video_id: str) -> bool:
+def send_result_to_discord(
+    parsed_data: str,
+    video_id: str,
+    title: str = "Null",
+    author: str = "Null"
+  ) -> bool:
   
   if not parsed_data:
     return False
@@ -192,74 +197,127 @@ def send_result_to_discord(parsed_data: str, video_id: str) -> bool:
   # add youtube link to message header
   # this way we get the embed preview
   header = f"{youtube_link}\n"
-  full_message = header + parsed_data + parsed_data + parsed_data
+  full_message = header + parsed_data
 
   # discord has a limit of 2000 characters per message
   # using 1900 to be safe
   max_characters = 1900
 
-  try:
-    print(f"[FETCHER] Sending video [{video_id}] ideas to Discord")
-    # if the analysis can fit in a single message
-    if len(parsed_data) <= max_characters:
-      # prepare the payload
-      payload = { "content": full_message }
-      # send it to discord
-      response = requests.post(discord_webhook, json = payload, timeout = 10)
-      print(f"status: {response.status_code}")
-      response.raise_for_status()
-    # if the analysis needs to be split into multiple messages
-    else:
-      # split the message into lines
-      # so we don't send the text with cuts in the middle of words
-      message_in_lines = full_message.spli("\n")
-      # start empty
-      current_block = ""
-      print("-" * 30)
-    
-      for line in message_in_lines:
-        # calculate the current size
-        print(f"line: {line}")
-        current_size = len(current_block)
-        print(f"current size: {current_size}")
-        # calculate the size of the next line
-        next_size = len(line)
-        print(f"next_size: {next_size}")
+  # array of blocks to send in different messages
+  blocks_to_send = []
 
-        # if adding the next line + '\n' will not fit into the max characters
-        if (current_size + next_size + 1) > max_characters:
-          print("wont fit")
-          # prepare payload
-          payload = { "content": current_block }
-          # send what we have
-          response = requests.post(discord_webhook, json = payload , timeout = 10)
-          print(f"status: {response.status_code}")
-          response.raise_for_status()
-          # update the current block to the start of the next line
-          # all previsous content was already sent
-          current_block = line + "\n"
-        else:
-          print("will fit")
-          # append the next line at the end of the block
-          # because there is still space available
-          current_block = current_block + line + "\n"
+  print(f"[FETCHER] Sending video [{video_id}] ideas to Discord")
+  # if the analysis can fit in a single message
+  if len(full_message) <= max_characters:
+    blocks_to_send.append(full_message)
+  # if the analysis needs to be split into multiple messages
+  else:
+    # split the message into lines
+    # so we don't send the text with cuts in the middle of words
+    message_in_lines = full_message.split("\n")
+    # start empty
+    current_block = ""
+  
+    for line in message_in_lines:
+      # calculate the current size
+      current_size = len(current_block)
+      # calculate the size of the next line
+      next_size = len(line)
 
-      # if there is some characters remaining in the end
-      if len(current_block.strip()) > 0:
-        print("remaining characters")
-        # prepare payload
-        payload = current_block
-        # send the final characters (if we have any)
+      # if adding the next line + '\n' will not fit into the max characters
+      if (current_size + next_size + 1) > max_characters:
+        blocks_to_send.append(current_block)
+        # update the current block to the start of the next line
+        current_block = line + "\n"
+      else:
+        # append the next line at the end of the block
+        # because there is still space available
+        current_block = current_block + line + "\n"
+
+    # if there is some characters remaining in the end
+    if len(current_block.strip()) > 0:
+      blocks_to_send.append(current_block)
+
+  # try to send each block to discord
+  for index, block in enumerate(blocks_to_send):
+    payload = { "content": block }
+    max_retries = 3 # add more if needed
+    retry_count = 0 # current retries made
+    message_sent = False
+
+    while not message_sent and retry_count < max_retries:
+      try:
+        # Discord rates limits are 5 requests every 2 seconds
+        # failed requests also counts
         response = requests.post(discord_webhook, json = payload, timeout = 10)
-        print(f"status: {response.status_code}")
-        response.raise_for_status()
 
-    return True
+        # get response code
+        code = response.status_code
 
-  except Exception as e:
-    print(f"[FECTHER] Error trying to send message to Discord: {e}")
-    return False
+        # if it sent successfully
+        if code == 200 or code == 204:
+          message_sent = True
 
+        # if exceeded the rate limit
+        elif code == 429:
+          # try one more time
+          retry_count += 1
+          # get response data
+          response_json = response.json()
+          # extract how much time we have to wait
+          # 2 seconds default
+          wait_time = response.json.get("retry_after", 2.0)
+          print("[FETCHER] Error: Discord webhook rate limit exceeded")
+          # wait how much we need to wait
+          time.sleep(wait_time)
+
+        # if client error (nothing can be done)
+        elif code >= 400 and code < 405:
+          print("[FETCHER] Error: Discord webhook http client error")
+          break
+
+        # any other errors
+        else:
+          # try one more time
+          retry_count += 1
+          print("[FETCHER] Error: Discord webhook error")
+          # wait 3 seconds
+          time.sleep(3.0)
+
+      except requests.RequestException as e:
+        retry_count += 1
+        print(f"[FETCHER] Error trying to send message to Discord: {e}")
+        # wait 3 seconds and try again
+        time.sleep(3.0)
+
+  # if it failed all tries to deliver the mesage to discord
+  # save it to a file on the current directory
+  # so we dont lose any information
+  if not message_sent:
+    
+    directory = "failed-messages"
+    # create directory if it doesnt exists
+    if not os.path.exists(directory):
+      os.makedirs(directory)
+
+    file_name = f"failed_message_{video_id}"
+    file_path = os.path.join(directory, file_name)
+
+    try:
+      with open(file_path, "w") as file:
+        file.write(f"Title: {title}\n")
+        file.write(f"Author: {author}\n")
+        file.write("-" * 40 + "\n")
+        file.write(full_message)
+
+      print("[FETCHER]: Could not send message to Discord. Saving to file.")
+    except IOError as e:
+      print(f"[FETCHER]: Error trying to save file to disk: {e}")
+      return False
+
+  return True
+
+# main pipeline
 # -----------------------------------------------------------------------------
 def main():
   # verify api keys
@@ -273,6 +331,13 @@ def main():
   test_id = "f8EbtQ7jQnQ"
   new_comments = fetch_youtube_comments(test_id)
   parsed_video = analyze_comments_with_gemini(new_comments, test_id)
+
+  #with open("llm-answer", "w") as answer:
+  #  answer.write(parsed_video)
+
+  #with open("llm-answer", "r") as answer:
+  #  parsed_video = answer.read()
+  
   success_send = send_result_to_discord(parsed_video, test_id)
 
 

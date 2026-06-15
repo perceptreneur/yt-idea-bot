@@ -226,3 +226,5 @@ __marimo__/
 # Channel list file
 channels.json
 
+# messages failed to deliver folder
+failed-messages/
