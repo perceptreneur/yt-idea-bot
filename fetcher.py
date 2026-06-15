@@ -134,16 +134,15 @@ def fetch_youtube_comments(video_id: str, max_comments = 500) -> list[str]:
 
     except Exception as e:
       print(f"[FECTHER] Error trying to fetch comments from YouTube API: {e}")
-      return []
+      return ["NETWORK_ERROR"]
 
   # return final list of comments
   return comment_list
 
-
 # 
 # -----------------------------------------------------------------------------
 def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
-
+  # do nothing without a comment list
   if not comments:
     return ""
 
@@ -173,7 +172,7 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
 
   except Exception as e:
     print(f"[FECTHER] Error trying to analyze comments with Gemini: {e}")
-    return ""
+    return "NETWORK_ERROR"
 
 # sends the analysis to Discord
 # -----------------------------------------------------------------------------
@@ -310,14 +309,53 @@ def send_result_to_discord(
         file.write("-" * 40 + "\n")
         file.write(full_message)
 
-      print("[FETCHER]: Could not send message to Discord. Saving to file.")
+      print("[FETCHER] Could not send message to Discord. Saving to file.")
     except IOError as e:
-      print(f"[FETCHER]: Error trying to save file to disk: {e}")
+      print(f"[FETCHER] Error trying to save file to disk: {e}")
       return False
 
   return True
 
-# main pipeline
+# core pipeline
+# -----------------------------------------------------------------------------
+def process_video(video_id: str, title: str, author: str) -> str:
+  # get comments
+  comments = fetch_youtube_comments(video_id)
+
+  # if the video doesnt have any comments
+  # or if comments are disabled, skip it
+  if not comments:
+    print(f"[FETCHER] No comments found for video [{video_id}] from author [{author}]")
+    return "SKIP"
+
+  # try again if it was just a network error
+  if "NETWORK_ERROR" in comments:
+    return "RETRY"
+
+  # get analysis
+  analysis = analyze_comments_with_gemini(comments, video_id)
+
+  # if it was called without any comments to begin with
+  if not analysis:
+    print(f"[FETCHER] No ideas or suggestions for video [{video_id}] from author [{author}]")
+    return "SKIP"
+
+  # try again if it was just a network error
+  if analysis == "NETWORK_ERROR":
+    return "RETRY"
+
+  #with open("llm-answer", "w") as answer:
+  #  answer.write(analysis)
+
+  #with open("llm-answer", "r") as answer:
+  #  analysis = answer.read()
+  
+  print(f"[FETCHER] Sending ideas from video [{video_id}] to Discord")
+  # will either send to Discord or save to file
+  send_result_to_discord(analysis, video_id, title, author)
+  return "PROCESSED"
+
+# main program
 # -----------------------------------------------------------------------------
 def main():
   # verify api keys
@@ -328,18 +366,31 @@ def main():
   # make sure to have a database working
   database.init_db()
 
-  test_id = "f8EbtQ7jQnQ"
-  new_comments = fetch_youtube_comments(test_id)
-  parsed_video = analyze_comments_with_gemini(new_comments, test_id)
+  # get videos that can be processed
+  expired_videos = database.get_expired_videos()
 
-  #with open("llm-answer", "w") as answer:
-  #  answer.write(parsed_video)
+  # if there is none, exit
+  if not expired_videos:
+    print(f"[FETCHER] No videos to process")
+    sys.exit(0)
 
-  #with open("llm-answer", "r") as answer:
-  #  parsed_video = answer.read()
-  
-  success_send = send_result_to_discord(parsed_video, test_id)
+  video_count = len(expired_videos)
+  print(f"[FETCHER] Found {video_count} videos for processing")
 
+  # process each video
+  for row in expired_videos:
+    ok = process_video(row["video_id"], row["title"], row["author"])
+
+    if ok == "PROCESSED":
+      # update db -> video processed
+      print(f"[FETCHER] Video [{row['video_id']}] processed")
+    elif ok == "SKIP":
+      # update db -> video skipped
+      print(f"[FETCHER] Video [{row['video_id']}] skipped")
+    elif ok == "RETRY":
+      # only show a warning
+      # will try again next cycle if it really was a network error
+      print(f"[FETCHER] Network error when trying to process video [{row['video_id']}]")
 
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":

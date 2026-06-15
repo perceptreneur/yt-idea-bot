@@ -5,6 +5,7 @@ from datetime import datetime
 DB_NAME = "yt-pipeline.db"
 
 # function to connect to database
+# -----------------------------------------------------------------------------
 def get_connection():
   try:
     # connect to database (30s timeout)
@@ -16,9 +17,10 @@ def get_connection():
     conn.row_factory = sqlite3.Row
     return conn
   except sqlite3.Error as e:
-    print(f"[DATABASE]: Error trying to connect to database: {e}")
+    print(f"[DATABASE] Error trying to connect to database: {e}")
     raise
 
+# -----------------------------------------------------------------------------
 def init_db():
   # main video table
   query = """
@@ -39,9 +41,10 @@ def init_db():
       # save changes
       conn.commit()
   except sqlite3.Error as e:
-    print(f"[DATABASE]: Error trying to initialize database: {e}")
+    print(f"[DATABASE] Error trying to initialize database: {e}")
     raise
 
+# -----------------------------------------------------------------------------
 def is_new_channel(channel_id: str) -> bool:
   # select all videos from a specific channel ID
   query = "SELECT COUNT(*) FROM videos WHERE channel_id = ?;"
@@ -57,10 +60,11 @@ def is_new_channel(channel_id: str) -> bool:
       # true if count equals 0
       return count == 0
   except sqlite3.Error as e:
-    print(f"[DATABASE]: Error checking status for channel {channel_id}: {e}")
+    print(f"[DATABASE] Error checking status for channel {channel_id}: {e}")
     # false if something went wrong (safety net)
     return false
 
+# -----------------------------------------------------------------------------
 def save_rss_videos(video_list: list, author: str):
   # expected format:
   # {
@@ -120,11 +124,33 @@ def save_rss_videos(video_list: list, author: str):
 
       # save changes
       conn.commit()
-      print(f"[DATABASE]: Added videos from channel [{author}]")
+      print(f"[DATABASE] Added videos from channel [{author}]")
   except aqlite3.Error as e:
-    print(f"[DATABASE]: Error trying to insert videos in the database: {e}")
+    print(f"[DATABASE] Error trying to insert videos in the database: {e}")
+
+# gets all the videos that match the hours passed since upload
+# -----------------------------------------------------------------------------
+def get_expired_videos(hours_passed: int = 48) -> list:
+  # selects all the videos that are waiting to be processed
+  query = """
+    SELECT * FROM videos
+    WHERE status = 'waiting' AND
+    datetime(published_at) <= datetime('now', ?);
+  """
+
+  try:
+    with get_connection() as conn:
+      cursor = conn.cursor()
+      cursor.execute(query, (f"-{hours_passed} hours", ))
+      # returns all videos that matches the criteria
+      return cursor.fetchall()
+  except sqlite3.Error as e:
+    print(f"[DATABASE] Error trying to fetch video waitlist: {e}")
+    # returns an empty list
+    return []
 
 # prints the entire database
+# -----------------------------------------------------------------------------
 def print_database(show_channel_id: bool = False):
   query = """
     SELECT * FROM videos
@@ -139,7 +165,7 @@ def print_database(show_channel_id: bool = False):
 
       # if the database is empty, just return
       if not rows:
-        print("[DATABASE]: Database empty")
+        print("[DATABASE] Database empty")
         return
 
       # set column spacing
@@ -222,9 +248,9 @@ def print_database(show_channel_id: bool = False):
           )
 
   except sqlite3.Error as e:
-    print(f"[DATABASE]: Error trying to print database: {e}")
+    print(f"[DATABASE] Error trying to print database: {e}")
 
-
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
   print_database()
 
