@@ -44,7 +44,7 @@ GEMINI_SYSTEM_PROMPT="""
 # verify if all api keys are set
 # -----------------------------------------------------------------------------
 def check_api_keys() -> bool:
-  required_keys = ["YOUTUBE_API_KEY", "GEMINI_API_KEY"]
+  required_keys = ["YOUTUBE_API_KEY", "GEMINI_API_KEY", "DISCORD_WEBHOOK_URL"]
 
   for k in required_keys:
     key = os.getenv(k)
@@ -168,12 +168,97 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
       )
     )
 
-    print(response.text)
+    #print(response.text)
     return response.text
 
   except Exception as e:
     print(f"[FECTHER] Error trying to analyze comments with Gemini: {e}")
     return ""
+
+# 
+# -----------------------------------------------------------------------------
+def send_result_to_discord(parsed_data: str, video_id: str) -> bool:
+  
+  if not parsed_data:
+    return False
+
+  # get discrod webhook
+  discord_webhook = os.getenv("DISCORD_WEBHOOK_URL")
+
+  # prepare youtube link
+  # using the short version to save some characters
+  youtube_link = f"https://youtu.be/{video_id}"
+
+  # add youtube link to message header
+  # this way we get the embed preview
+  header = f"{youtube_link}\n"
+  full_message = header + parsed_data + parsed_data + parsed_data
+
+  # discord has a limit of 2000 characters per message
+  # using 1900 to be safe
+  max_characters = 1900
+
+  try:
+    print(f"[FETCHER] Sending video [{video_id}] ideas to Discord")
+    # if the analysis can fit in a single message
+    if len(parsed_data) <= max_characters:
+      # prepare the payload
+      payload = { "content": full_message }
+      # send it to discord
+      response = requests.post(discord_webhook, json = payload, timeout = 10)
+      print(f"status: {response.status_code}")
+      response.raise_for_status()
+    # if the analysis needs to be split into multiple messages
+    else:
+      # split the message into lines
+      # so we don't send the text with cuts in the middle of words
+      message_in_lines = full_message.spli("\n")
+      # start empty
+      current_block = ""
+      print("-" * 30)
+    
+      for line in message_in_lines:
+        # calculate the current size
+        print(f"line: {line}")
+        current_size = len(current_block)
+        print(f"current size: {current_size}")
+        # calculate the size of the next line
+        next_size = len(line)
+        print(f"next_size: {next_size}")
+
+        # if adding the next line + '\n' will not fit into the max characters
+        if (current_size + next_size + 1) > max_characters:
+          print("wont fit")
+          # prepare payload
+          payload = { "content": current_block }
+          # send what we have
+          response = requests.post(discord_webhook, json = payload , timeout = 10)
+          print(f"status: {response.status_code}")
+          response.raise_for_status()
+          # update the current block to the start of the next line
+          # all previsous content was already sent
+          current_block = line + "\n"
+        else:
+          print("will fit")
+          # append the next line at the end of the block
+          # because there is still space available
+          current_block = current_block + line + "\n"
+
+      # if there is some characters remaining in the end
+      if len(current_block.strip()) > 0:
+        print("remaining characters")
+        # prepare payload
+        payload = current_block
+        # send the final characters (if we have any)
+        response = requests.post(discord_webhook, json = payload, timeout = 10)
+        print(f"status: {response.status_code}")
+        response.raise_for_status()
+
+    return True
+
+  except Exception as e:
+    print(f"[FECTHER] Error trying to send message to Discord: {e}")
+    return False
 
 # -----------------------------------------------------------------------------
 def main():
@@ -188,6 +273,7 @@ def main():
   test_id = "f8EbtQ7jQnQ"
   new_comments = fetch_youtube_comments(test_id)
   parsed_video = analyze_comments_with_gemini(new_comments, test_id)
+  success_send = send_result_to_discord(parsed_video, test_id)
 
 
 # -----------------------------------------------------------------------------
