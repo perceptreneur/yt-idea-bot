@@ -92,7 +92,7 @@ def save_rss_videos(video_list: list, author: str):
   # the INSERT OR IGNORE will make sure that we
   # don't have any duplicates from reading the
   # same rss feed over and over
-  insert_query="""
+  query="""
     INSERT OR IGNORE INTO videos
     (video_id, channel_id, author, title, published_at, status)
     VALUES (?, ?, ?, ?, ?, ?);
@@ -112,7 +112,7 @@ def save_rss_videos(video_list: list, author: str):
 
         # inserts video in the database
         conn.execute(
-          insert_query, (
+          query, (
             video['video_id'],
             video['channel_id'],
             video['author'],
@@ -148,6 +148,62 @@ def get_expired_videos(hours_passed: int = 48) -> list:
     print(f"[DATABASE] Error trying to fetch video waitlist: {e}")
     # returns an empty list
     return []
+
+
+
+# save video that was processed manually
+# -----------------------------------------------------------------------------
+def save_manual_video(video: dict):
+  # do nothing without a video
+  if not video:
+    return
+
+  # prepare variables
+  video_id = video["video_id"]
+  channel_id = video["channel_id"]
+  author = video["author"]
+  title = video["title"]
+  published_at = video["published_at"]
+
+  # using insert or replace here
+  # so that if a video is marked as skipped or waiting,
+  # it get processed and updated in the database
+  query="""
+    INSERT OR REPLACE INTO videos
+    (video_id, channel_id, author, title, published_at, status)
+    VALUES (?, ?, ?, ?, ?, 'processed');
+  """
+
+  try:
+    with get_connection() as conn:
+      # execute query
+      conn.execute(query, (video_id, channel_id, author, title, published_at))
+      # save changes
+      conn.commit()
+      print(f"[DATABASE] Manually processed video [{video_id}] from [{author}]")
+  except sqlite3.Error as e:
+    print(f"[DATABASE] Error trying to manually process video [{video_id}]")
+
+
+
+# updates the status of a video after processing
+# -----------------------------------------------------------------------------
+def update_video_status(video_id: str, new_status: str):
+  # do nothing without a video ID
+  if not video_id:
+    return
+
+  # updates a single video status
+  query = "UPDATE videos SET status = ? WHERE video_id = ?;"
+
+  try:
+    with get_connection() as conn:
+      # execute query
+      conn.execute(query, (new_status, video_id))
+      #save changes
+      conn.commit()
+  except sqlite3.Error as e:
+    print(f"[DATABASE] Error trying to update video [{video_id} status]")
 
 # prints the entire database
 # -----------------------------------------------------------------------------
