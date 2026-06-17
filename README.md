@@ -52,7 +52,7 @@ In `save_rss_videos()` you can set a different limit of videos to process at onc
 ### 4. Fetcher
 In `get_expired_videos()` you can change the amount of time it waits to fetch the comments (default is 48h).
 
-It's not unusual to get status `500` when trying to call the Gemini API. It uses the free tier, so it has limits and low priority. Servers can also be overloaded. Videos that fail to be processed due to that will remain with the `WAITING` status and will be processed in the next cycle.
+It's not unusual to get status `500` when trying to call the Gemini API. It uses the free tier, so it has high demand, limits and low priority. Servers can also be overloaded. Videos that fail to be processed due to that will remain with the `WAITING` status and will be processed in the next cycle.
 
 ## Database
 
