@@ -13,6 +13,7 @@ channel_list = "channels.json"
 # rss feed base url
 rss_base = "https://www.youtube.com/feeds/videos.xml?channel_id="
 
+# -----------------------------------------------------------------------------
 def main():
   # opens channel list for parsing
   with open(channel_list, 'r') as f:
@@ -66,5 +67,6 @@ def main():
     # save new videos to database
     database.save_rss_videos(video_list, channel_name)
 
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
   main()

@@ -64,7 +64,7 @@ def get_latest_timestamp(channel_id: str) -> str:
         return row[0]
 
   except sqlite3.Error as e:
-    print(f"[DATABASE] Error trying to get latest timestamp for channel [{channel_id}]")
+    print(f"[DATABASE] Error fetching timestamp for channel [{channel_id}]")
 
   return ""
 
@@ -105,7 +105,11 @@ def save_rss_videos(video_list: list, author: str, insert_limit: int = 3):
 
     # video from rss feed are already sorted from newest to oldest
     # we sort them again, just in case something weird can happen
-    sorted_videos = sorted(video_list, key = lambda x: x['published_at'], reverse = True)
+    sorted_videos = sorted(
+                      video_list,
+                      key = lambda x: x['published_at'],
+                      reverse = True
+                    )
     
     # list of videos to add in the database
     videos_to_insert = []
@@ -282,6 +286,7 @@ def print_database(show_channel_id: bool = False):
           display_title = display_title[:42] + "..."
 
         try:
+          # use a more readable date
           clean_date = row['published_at'].split('+')[0]
           converted_date = datetime.fromisoformat(clean_date)
           display_date = converted_date.strftime("%b %d, %Y %Hh%M")
@@ -290,7 +295,6 @@ def print_database(show_channel_id: bool = False):
           # in the database but truncated to 16 characters
           display_date: row['published_at'][:16]
 
-        
         display_status = row['status'].upper()
 
         if show_channel_id:
@@ -321,6 +325,4 @@ def print_database(show_channel_id: bool = False):
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
   print_database()
-
-
 
