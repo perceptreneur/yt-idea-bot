@@ -1,0 +1,2 @@
+0 1-23/2 * * * cd TARGET_DIRECTORY && ~/.local/bin/uv run listener.py >> pipeline.log 2>&1 && tail -n 1000 pipeline.log > temp.log && mv temp.log pipeline.log
+0 0-22/2 * * * cd TARGET_DIRECTORY && ~/.local/bin/uv run fetcher.py  >> pipeline.log 2>&1 && tail -n 1000 pipeline.log > temp.log && mv temp.log pipeline.log

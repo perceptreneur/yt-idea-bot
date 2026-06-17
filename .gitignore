@@ -228,3 +228,6 @@ channels.json
 
 # messages failed to deliver folder
 failed-messages/
+
+# pipeline logs
+pipeline.log
