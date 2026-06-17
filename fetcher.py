@@ -155,8 +155,10 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
   gm_api_key = os.getenv("GEMINI_API_KEY")
   # authenticate gemini
   client = genai.Client(api_key = gm_api_key)
+  # flatten the comments to avoid errors
+  flattened_comments = "\n".join(comments)
   # prepare message payload
-  message = f"<comments> {comments} </comments>"
+  message = f"<comments>\n{flattened_comments}\n</comments>"
 
   try:
     print(f"[FETCHER] Analyzing comments from video [{video_id}]")
