@@ -44,11 +44,12 @@ GEMINI_SYSTEM_PROMPT="""
      content.
 """
 
-# verify if all api keys are set
+# verifies if all api keys are set
 # -----------------------------------------------------------------------------
 def check_api_keys() -> bool:
   required_keys = ["YOUTUBE_API_KEY", "GEMINI_API_KEY", "DISCORD_WEBHOOK_URL"]
 
+  # checks if each required key exists
   for k in required_keys:
     key = os.getenv(k)
     if not key:
@@ -56,7 +57,7 @@ def check_api_keys() -> bool:
 
   return True
 
-# get youtube comments from youtbe api v3
+# gets youtube comments from youtbe api v3
 # -----------------------------------------------------------------------------
 def fetch_youtube_comments(video_id: str, max_comments = 500) -> list[str]:
   # without a video ID, do nothing
@@ -71,7 +72,7 @@ def fetch_youtube_comments(video_id: str, max_comments = 500) -> list[str]:
 
   # we don't have a token to start
   next_page_token = None
-  # assume it has at least one more page
+  # assume it has at least one page
   has_more_pages = True
 
   while has_more_pages:

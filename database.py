@@ -4,7 +4,7 @@ from datetime import datetime
 # database name
 DB_NAME = "yt-pipeline.db"
 
-# function to connect to database
+# connects to the database
 # -----------------------------------------------------------------------------
 def get_connection():
   try:
@@ -20,6 +20,7 @@ def get_connection():
     print(f"[DATABASE] Error trying to connect to database: {e}")
     raise
 
+# initializes the database
 # -----------------------------------------------------------------------------
 def init_db():
   # main video table
@@ -44,28 +45,32 @@ def init_db():
     print(f"[DATABASE] Error trying to initialize database: {e}")
     raise
 
+# gets the most recent timestamp of a channel
 # -----------------------------------------------------------------------------
-def is_new_channel(channel_id: str) -> bool:
-  # select all videos from a specific channel ID
-  query = "SELECT COUNT(*) FROM videos WHERE channel_id = ?;"
+def get_latest_timestamp(channel_id: str) -> str:
   
+  # select the newest video (latest timestamp) of a channel
+  query = "SELECT MAX(published_at) FROM videos WHERE channel_id = ?;"
+
   try:
     with get_connection() as conn:
-      # cursor -> alows operations in sqlite
       cursor = conn.cursor()
-      # search for any videos with that channel ID
       cursor.execute(query, (channel_id, ))
-      # get the video count
-      count = cursor.fetchone()[0]
-      # true if count equals 0
-      return count == 0
-  except sqlite3.Error as e:
-    print(f"[DATABASE] Error checking status for channel {channel_id}: {e}")
-    # false if something went wrong (safety net)
-    return false
+      row = cursor.fetchone()
 
+      # return the timestamp string
+      # if it exists
+      if row and row[0]:
+        return row[0]
+
+  except sqlite3.Error as e:
+    print(f"[DATABASE] Error trying to get latest timestamp for channel [{channel_id}]")
+
+  return ""
+
+# save rss feed video to the database
 # -----------------------------------------------------------------------------
-def save_rss_videos(video_list: list, author: str):
+def save_rss_videos(video_list: list, author: str, insert_limit: int = 3):
   # expected format:
   # {
   #   "video_id": '?',
@@ -83,10 +88,6 @@ def save_rss_videos(video_list: list, author: str):
   # if it is empty it will never get to this point
   # so there will be at least the element [0]
   channel_id = video_list[0]['channel_id']
-  # verify if it's the first time adding the channel
-  # we don't want to flood the database with the last 15 videos
-  # at once, so for new channels we get only the last video
-  new_channel = is_new_channel(channel_id)
 
   # query to insert videos in the database
   # the INSERT OR IGNORE will make sure that we
@@ -99,33 +100,48 @@ def save_rss_videos(video_list: list, author: str):
   """
 
   try:
-    # connect to database
+    # get newest video
+    latest_timestamp = get_latest_timestamp(channel_id)
+
+    # video from rss feed are already sorted from newest to oldest
+    # we sort them again, just in case something weird can happen
+    sorted_videos = sorted(video_list, key = lambda x: x['published_at'], reverse = True)
+    
+    # list of videos to add in the database
+    videos_to_insert = []
+    
+    for index, video in enumerate(sorted_videos):
+      # assume the video is not new
+      video_is_new = False
+
+      # if latest_timestamp is false, the channel is new and so is the video
+      # if the current video has a newer timestamp, it's obviously newer 
+      if not latest_timestamp or (video['published_at'] > latest_timestamp):
+        video_is_new = True
+      
+      # if the video is new and we didn't reach the limit
+      if video_is_new and (index < insert_limit):
+        status = "waiting"
+      else:
+        status = "skipped"
+      
+      # prepare variables
+      video_id = video['video_id']
+      channel_id = video['channel_id']
+      author = video['author']
+      title = video['title']
+      published_at = video['published_at']
+
+      # add each video to the list
+      video_row = (video_id, channel_id, author, title, published_at, status)
+      videos_to_insert.append(video_row)
+
+    # add all rss videos to database
     with get_connection() as conn:
-      # go through each video in order
-      for index, video in enumerate(video_list):
-        # if it's the first time adding the channel, skip it
-        if new_channel and index > 0:
-          status = "skipped"
-        # else, goes to the waiting line
-        else:
-          status = "waiting"
-
-        # inserts video in the database
-        conn.execute(
-          query, (
-            video['video_id'],
-            video['channel_id'],
-            video['author'],
-            video['title'],
-            video['published_at'],
-            status
-          )
-        )
-
-      # save changes
+      conn.executemany(query, videos_to_insert)
       conn.commit()
       print(f"[DATABASE] Added videos from channel [{author}]")
-  except aqlite3.Error as e:
+  except sqlite3.Error as e:
     print(f"[DATABASE] Error trying to insert videos in the database: {e}")
 
 # gets all the videos that match the hours passed since upload
@@ -149,9 +165,7 @@ def get_expired_videos(hours_passed: int = 48) -> list:
     # returns an empty list
     return []
 
-
-
-# save video that was processed manually
+# saves a video that was processed manually
 # -----------------------------------------------------------------------------
 def save_manual_video(video: dict):
   # do nothing without a video
@@ -184,8 +198,6 @@ def save_manual_video(video: dict):
   except sqlite3.Error as e:
     print(f"[DATABASE] Error trying to manually process video [{video_id}]")
 
-
-
 # updates the status of a video after processing
 # -----------------------------------------------------------------------------
 def update_video_status(video_id: str, new_status: str):
@@ -200,7 +212,7 @@ def update_video_status(video_id: str, new_status: str):
     with get_connection() as conn:
       # execute query
       conn.execute(query, (new_status, video_id))
-      #save changes
+      # save changes
       conn.commit()
   except sqlite3.Error as e:
     print(f"[DATABASE] Error trying to update video [{video_id} status]")
