@@ -160,27 +160,108 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
   # prepare message payload
   message = f"<comments>\n{flattened_comments}\n</comments>"
 
+  # set main model and fallbacks
+  main_model = 'gemma-4-31b-it'
+  fb_model_one = 'gemma-4-26b-a4b-it'
+  fb_model_two = 'gemini-3.1-flash-lite'
+
+  # strategy:
+  # all three models can handle the task
+  # try first with both gemma4 models
+  # because they have good free quotas
+  # if both fail, try with 3.1 flash lite
+  # which has less quotas, but are still decent
+
+  # free quotas:
+  #
+  # both gemma4 models
+  #   15 requests per minute
+  #   1500 requests per day
+  #   unlimited tokens per minute
+  #
+  # gemini 3.1 flash lite
+  #   15 requests per minute
+  #   500 requests per day
+  #   250k tokens per minute
+
   try:
     print(f"[FETCHER] Analyzing comments from video [{video_id}]")
+
+    # try with gemma4 31b
     response = client.models.generate_content(
-      # using gemma4 here because of limit rates
-      # 15 requests per minute
-      # 1500 requests per day
-      # unlimited tokens
-      # more than enough for text analysis and summarization
-      model = 'gemma-4-31b-it',
+      model = main_model,
       contents = message,
       config = types.GenerateContentConfig(
         system_instruction = GEMINI_SYSTEM_PROMPT,
+        # recommended configs for gemma4
+        temperature = 1.0,
+        top_p = 0.95,
+        top_k = 64
       )
     )
 
     # returns the response from gemini
     return response.text
 
-  except Exception as e:
-    print(f"[FECTHER] Error trying to analyze comments with Gemini: {e}")
-    return "NETWORK_ERROR"
+  except Exception as error_one:
+    print(
+      f"[FETCHER] Failed to analyze comments "
+      f"with [{main_model}]: {error_one}. "
+      f"Trying again with [{fb_model_one}]"
+    )
+
+    # wait 4 seconds just in case
+    time.sleep(4.0)
+
+    try:
+      # try with gemma4 26b moe 
+      response = client.models.generate_content(
+        model = fb_model_one,
+        contents = message,
+        config = types.GenerateContentConfig(
+          system_instruction = GEMINI_SYSTEM_PROMPT,
+          # recommended configs for gemma4
+          temperature = 1.0,
+          top_p = 0.95,
+          top_k = 64
+        )
+      )
+
+      # returns the response from gemini
+      return response.text
+
+    except Exception as error_two:
+      print(
+        f"[FETCHER] Failed to analyze comments "
+        f"with [{fb_model_one}]: {error_two}. "
+        f"Trying again with [{fb_model_two}]"
+      )
+
+      # wait 4 seconds just in case
+      time.sleep(4.0)
+
+      try:
+        # try with gemini 3.1 flash lite 
+        response = client.models.generate_content(
+          model = fb_model_two,
+          contents = message,
+          config = types.GenerateContentConfig(
+            system_instruction = GEMINI_SYSTEM_PROMPT,
+            # set thinking mode to 'medium'
+            thinking_config = types.ThinkingConfig(thinking_level = "medium")
+          )
+        )
+
+        # return the response from gemini
+        return response.text
+
+      # if everything fails, leave it to the next cycle
+      except Exception as error_three:
+        print(
+          f"[FECTHER] Error trying to analyze comments "
+          f"with Gemini: {error_three}"
+        )
+        return "NETWORK_ERROR"
 
 # sends the analysis to Discord
 # -----------------------------------------------------------------------------

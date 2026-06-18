@@ -7,7 +7,7 @@ Automated tool that monitors YouTube channels via RSS, saves new videos metadata
 ## Project files
 
 * **`listener.py`**: Gets new videos from the YouTube RSS feed and saves them to the database.
-* **`fetcher.py`**: Fetches comments for expired videos, processes them with Gemini (Gemma), and sends the results to Discord.
+* **`fetcher.py`**: Fetches comments for expired videos, processes them with Gemini, and sends the results to Discord.
 * **`database.py`**: Manages the SQLite database.
 * **`channels.json.example`**: Example file for the channel list that will be monitored.
 * **`.env.example`**: Example file for the environment variables needed.
@@ -52,7 +52,18 @@ In `save_rss_videos()` you can set a different limit of videos to process at onc
 ### 4. Fetcher
 In `get_expired_videos()` you can change the amount of time it waits to fetch the comments (default is 48h).
 
-It's not unusual to get status `500` when trying to call the Gemini API. It uses the free tier, so it has high demand, limits and low priority. Servers can also be overloaded. Videos that fail to be processed due to that will remain with the `WAITING` status and will be processed in the next cycle.
+It's not unusual to get status `500` when trying to call the Gemini API. It uses the free tier, so it has high demand, limits and low priority. Servers can also be overloaded. 
+
+There is a fallback strategy to avoid videos piling up in the database due to constant status `500` errors. It first tries to use the dense `gemma4` model. If it fails, it tries the MoE version. If it fails again, then the `gemini 3.1 flash lite` model is used.
+
+In summary:
+```
+gemma-4-31b-it -> gemma-4-26b-a4b-it -> gemini-3.1-flash-lite
+```
+
+This way we can take advantage of the generous quota from both of the `gemma4` models first and if they fail, we use the quota from `gemini 3.1 flash lite`, which is smaller, but less prone to have status `500` errors.
+
+Videos that fail all three attempts to be processed will remain with the `WAITING` status and will be processed in the next cycle.
 
 ## Database
 
