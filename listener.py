@@ -12,7 +12,17 @@ database.init_db()
 # channel list file
 channel_list = "channels.json"
 # rss feed base url
-rss_base = "https://www.youtube.com/feeds/videos.xml?channel_id="
+rss_base = "https://www.youtube.com/feeds/videos.xml?"
+
+# uses the correct parameter in the feed url
+# -----------------------------------------------------------------------------
+def get_feed_parameter(channel_id: str) -> str:
+  # if it starts with UC it's the channel ID
+  if channel_id[:2] == "UC":
+    return "channel_id"
+
+  # anything else is the playlist ID
+  return "playlist_id"
 
 # -----------------------------------------------------------------------------
 def main():
@@ -26,11 +36,14 @@ def main():
     channel = config['channel_name']
     log(f"[LISTENER] Starting parse for channel [{channel}]")
 
+    # get the correct url parameter
+    param = get_feed_parameter(channel_id)
+
     # get rss feed for this channel ID
-    feed_data = feedparser.parse(rss_base + channel_id)
+    feed_data = feedparser.parse(rss_base + param + "=" + channel_id)
 
     # if the feed is empty for some reason
-    # ignore it and go to the next channel
+# ignore it and go to the next channel
     if not feed_data:
       log(f"[LISTENER] Error: Couldn't get RSS data for channel [{channel}]")
       continue

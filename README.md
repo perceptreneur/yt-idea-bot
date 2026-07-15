@@ -9,6 +9,7 @@ Automated tool that monitors YouTube channels via RSS, saves new videos metadata
 * **`listener.py`**: Gets new videos from the YouTube RSS feed and saves them to the database.
 * **`fetcher.py`**: Fetches comments for expired videos, processes them with Gemini, and sends the results to Discord.
 * **`database.py`**: Manages the SQLite database.
+* **`utils.py`**: Helper utilities.
 * **`channels.json.example`**: Example file for the channel list that will be monitored.
 * **`.env.example`**: Example file for the environment variables needed.
 * **`pyproject.toml`**: Python project configuration and dependencies.
@@ -44,7 +45,21 @@ Open `.env` and enter your `YOUTUBE_API_KEY`, `GEMINI_API_KEY`, and `DISCORD_WEB
 cp channels.json.example channels.json
 ```
 
-Open `channels.json` and add the ID and name of the channels you want to monitor. 
+Open `channels.json` and add the ID and name of the channels you want to monitor.
+
+Depending on what you want to monitor, the channel ID prefix will change.
+
+These are the prefixes available on YouTube:
+
+| Prefix | Feed Content          |
+|--------|-----------------------|
+|  UC    | Default channel feed  |
+|  UU    | All uploads           |
+|  UULF  | Long-form videos only |
+|  UUSH  | Shorts only           |
+|  UULV  | Live streams only     |
+
+Change it based on what you need. The `UUSH` prefix will be empty because the code is configured to ignore Shorts.
 
 ### 3. Listener
 In `save_rss_videos()` you can set a different limit of videos to process at once (default is 3). This means that no matter how many videos are in the wait list, only 3 will be processed per channel per batch, leaving the rest for the next cycle.
