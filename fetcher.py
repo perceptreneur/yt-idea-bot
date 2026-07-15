@@ -11,6 +11,7 @@ from google.genai import types
 
 # local imports
 import database
+from utils import log
 
 # load environment variables
 load_dotenv()
@@ -106,8 +107,9 @@ def fetch_youtube_comments(video_id: str, max_comments: int = 500) -> list[str]:
     if next_page_token:
       params["pageToken"] = next_page_token
 
+    log(f"[FETCHER] Fetching comments for video [{video_id}]")
+    
     try:
-      print(f"[FETCHER] Fetching comments for video [{video_id}]")
       response = requests.get(url, params = params, timeout = 15)
 
       # 403 = forbidden
@@ -115,7 +117,7 @@ def fetch_youtube_comments(video_id: str, max_comments: int = 500) -> list[str]:
       # we reached the quota limit
       # or comments are disabled
       if response.status_code == 403:
-        print(f"[FETCHER] Unable to fetch comments for video [{video_id}]")
+        log(f"[FETCHER] Unable to fetch comments for video [{video_id}]")
         # return partial comments (if any)
         return comment_list
   
@@ -138,7 +140,7 @@ def fetch_youtube_comments(video_id: str, max_comments: int = 500) -> list[str]:
         has_more_pages = False
 
     except Exception as e:
-      print(f"[FECTHER] Error trying to fetch comments from YouTube API: {e}")
+      log(f"[FECTHER] Error trying to fetch comments from YouTube API: {e}")
       return ["NETWORK_ERROR"]
 
   # return final list of comments
@@ -185,7 +187,7 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
   #   250k tokens per minute
 
   try:
-    print(f"[FETCHER] Analyzing comments from video [{video_id}]")
+    log(f"[FETCHER] Analyzing comments from video [{video_id}]")
 
     # try with gemma4 31b
     response = client.models.generate_content(
@@ -204,7 +206,7 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
     return response.text
 
   except Exception as error_one:
-    print(
+    log(
       f"[FETCHER] Failed to analyze comments "
       f"with [{main_model}]: {error_one}. "
       f"Trying again with [{fb_model_one}]"
@@ -231,7 +233,7 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
       return response.text
 
     except Exception as error_two:
-      print(
+      log(
         f"[FETCHER] Failed to analyze comments "
         f"with [{fb_model_one}]: {error_two}. "
         f"Trying again with [{fb_model_two}]"
@@ -257,7 +259,7 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
 
       # if everything fails, leave it to the next cycle
       except Exception as error_three:
-        print(
+        log(
           f"[FECTHER] Error trying to analyze comments "
           f"with Gemini: {error_three}"
         )
@@ -354,26 +356,26 @@ def send_result_to_discord(analysis: str, video: dict) -> bool:
           # extract how much time we have to wait
           # 2 seconds default
           wait_time = response.json.get("retry_after", 2.0)
-          print("[FETCHER] Error: Discord webhook rate limit exceeded")
+          log("[FETCHER] Error: Discord webhook rate limit exceeded")
           # wait how much we need to wait
           time.sleep(wait_time)
 
         # if client error (nothing can be done)
         elif code >= 400 and code < 405:
-          print("[FETCHER] Error: Discord webhook http client error")
+          log("[FETCHER] Error: Discord webhook http client error")
           break
 
         # any other errors
         else:
           # try one more time
           retry_count += 1
-          print("[FETCHER] Error: Discord webhook error")
+          log("[FETCHER] Error: Discord webhook error")
           # wait 3 seconds
           time.sleep(3.0)
 
       except requests.RequestException as e:
         retry_count += 1
-        print(f"[FETCHER] Error trying to send message to Discord: {e}")
+        log(f"[FETCHER] Error trying to send message to Discord: {e}")
         # wait 3 seconds and try again
         time.sleep(3.0)
 
@@ -398,9 +400,9 @@ def send_result_to_discord(analysis: str, video: dict) -> bool:
         file.write("-" * 40 + "\n")
         file.write(full_message)
 
-      print("[FETCHER] Could not send message to Discord. Saving to file.")
+      log("[FETCHER] Could not send message to Discord. Saving to file.")
     except IOError as e:
-      print(f"[FETCHER] Error trying to save file to disk: {e}")
+      log(f"[FETCHER] Error trying to save file to disk: {e}")
       return False
 
   return True
@@ -423,7 +425,7 @@ def process_video(video: dict) -> str:
   # if the video doesnt have any comments
   # or if comments are disabled, skip it
   if not comments:
-    print(
+    log(
       f"[FETCHER] No comments found for video [{video_id}]"
       f"from author [{author}]"
     )
@@ -438,7 +440,7 @@ def process_video(video: dict) -> str:
 
   # if it was called without any comments to begin with
   if not analysis:
-    print(
+    log(
       f"[FETCHER] No ideas or suggestions for video [{video_id}]"
       f"from author [{author}]"
     )
@@ -448,7 +450,7 @@ def process_video(video: dict) -> str:
   if analysis == "NETWORK_ERROR":
     return "RETRY"
 
-  print(f"[FETCHER] Sending ideas from video [{video_id}] to Discord")
+  log(f"[FETCHER] Sending ideas from video [{video_id}] to Discord")
   # will either send to Discord or save to file
   send_result_to_discord(analysis, video)
   return "PROCESSED"
@@ -530,7 +532,7 @@ def get_video_info(video_id: str) -> dict:
       # return video info
       return info
   except requests.RequestException as e:
-    print(f"[FETCHER] Error trying to get video [{video_id}] information")
+    log(f"[FETCHER] Error trying to get video [{video_id}] information")
     return []    
 
 # main program
@@ -538,7 +540,7 @@ def get_video_info(video_id: str) -> dict:
 def main():
   # verify api keys
   if not check_api_keys():
-    print("[FETCHER] Error: One or more API Keys not set")
+    log("[FETCHER] Error: One or more API Keys not set")
     sys.exit(1)
 
   # make sure to have a database working
@@ -553,7 +555,7 @@ def main():
   if args.url:
 
     # get video ID
-    print(f"[FETCHER] Extracting video ID")
+    log(f"[FETCHER] Extracting video ID")
     video_id = get_video_id(args.url)
 
     # if we don't have a video ID, simply skip
@@ -564,6 +566,7 @@ def main():
     # since we are bypassing the database
     # we need to get this video info:
     # channel ID, title, author, date of publishing
+    log(f"[FETCHER] Getting video info")
     video = get_video_info(video_id)
 
     # if failed to fetch video info, simply skip
@@ -577,12 +580,12 @@ def main():
     # skip = no comments or no video ideas
     # so mark it as processed anyways
     if result == "PROCESSED" or result == "SKIP":
-      print(f"[FETCHER] Video [{video_id}] processed")
+      log(f"[FETCHER] Video [{video_id}] processed")
       database.save_manual_video(video)
     else:
       # only show the error message
       # user can try again by running the command again
-      print(f"[FETCHER] Error when trying to process video [{video_id}]")
+      log(f"[FETCHER] Error when trying to process video [{video_id}]")
     
     # waits 4 seconds before next processing
     # to avoid reaching gemma4 api limit (15 per minute)
@@ -597,11 +600,11 @@ def main():
 
   # if there is none, exit
   if not expired_videos:
-    print(f"[FETCHER] No videos to process")
+    log(f"[FETCHER] No videos to process")
     sys.exit(0)
 
   video_count = len(expired_videos)
-  print(f"[FETCHER] Found {video_count} videos for processing")
+  log(f"[FETCHER] Found {video_count} videos for processing")
 
   # process each video
   for row in expired_videos:
@@ -621,15 +624,15 @@ def main():
     if result == "PROCESSED":
       # update db -> video processed
       database.update_video_status(video_id, "processed")
-      print(f"[FETCHER] Video [{video_id}] processed")
+      log(f"[FETCHER] Video [{video_id}] processed")
     elif result == "SKIP":
       # update db -> video skipped
       database.update_video_status(video_id, "skipped")
-      print(f"[FETCHER] Video [{video_id}] skipped")
+      log(f"[FETCHER] Video [{video_id}] skipped")
     elif result == "RETRY":
       # only show a warning
       # will try again next cycle if it really was a network error
-      print(f"[FETCHER] Network error when trying to process video [{video_id}]")
+      log(f"[FETCHER] Network error when trying to process video [{video_id}]")
 
     # waits 4 seconds before next processing
     # to avoid reaching gemma4 api limit (15 per minute)

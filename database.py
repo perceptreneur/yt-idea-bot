@@ -1,5 +1,9 @@
+# package imports
 import sqlite3
 from datetime import datetime
+
+# local imports
+from utils import log
 
 # database name
 DB_NAME = "yt-pipeline.db"
@@ -17,7 +21,7 @@ def get_connection():
     conn.row_factory = sqlite3.Row
     return conn
   except sqlite3.Error as e:
-    print(f"[DATABASE] Error trying to connect to database: {e}")
+    log(f"[DATABASE] Error trying to connect to database: {e}")
     raise
 
 # initializes the database
@@ -42,7 +46,7 @@ def init_db():
       # save changes
       conn.commit()
   except sqlite3.Error as e:
-    print(f"[DATABASE] Error trying to initialize database: {e}")
+    log(f"[DATABASE] Error trying to initialize database: {e}")
     raise
 
 # gets the most recent timestamp of a channel
@@ -64,7 +68,7 @@ def get_latest_timestamp(channel_id: str) -> str:
         return row[0]
 
   except sqlite3.Error as e:
-    print(f"[DATABASE] Error fetching timestamp for channel [{channel_id}]")
+    log(f"[DATABASE] Error fetching timestamp for channel [{channel_id}]")
 
   return ""
 
@@ -144,9 +148,9 @@ def save_rss_videos(video_list: list, author: str, insert_limit: int = 3):
     with get_connection() as conn:
       conn.executemany(query, videos_to_insert)
       conn.commit()
-      print(f"[DATABASE] Added videos from channel [{author}]")
+      log(f"[DATABASE] Added videos from channel [{author}]")
   except sqlite3.Error as e:
-    print(f"[DATABASE] Error trying to insert videos in the database: {e}")
+    log(f"[DATABASE] Error trying to insert videos in the database: {e}")
 
 # gets all the videos that match the hours passed since upload
 # -----------------------------------------------------------------------------
@@ -165,7 +169,7 @@ def get_expired_videos(hours_passed: int = 48) -> list:
       # returns all videos that matches the criteria
       return cursor.fetchall()
   except sqlite3.Error as e:
-    print(f"[DATABASE] Error trying to fetch video waitlist: {e}")
+    log(f"[DATABASE] Error trying to fetch video waitlist: {e}")
     # returns an empty list
     return []
 
@@ -198,9 +202,9 @@ def save_manual_video(video: dict):
       conn.execute(query, (video_id, channel_id, author, title, published_at))
       # save changes
       conn.commit()
-      print(f"[DATABASE] Manually processed video [{video_id}] from [{author}]")
+      log(f"[DATABASE] Manually processed video [{video_id}] from [{author}]")
   except sqlite3.Error as e:
-    print(f"[DATABASE] Error trying to manually process video [{video_id}]")
+    log(f"[DATABASE] Error trying to manually process video [{video_id}]")
 
 # updates the status of a video after processing
 # -----------------------------------------------------------------------------
@@ -219,7 +223,7 @@ def update_video_status(video_id: str, new_status: str):
       # save changes
       conn.commit()
   except sqlite3.Error as e:
-    print(f"[DATABASE] Error trying to update video [{video_id} status]")
+    log(f"[DATABASE] Error trying to update video [{video_id} status]")
 
 # prints the entire database
 # -----------------------------------------------------------------------------
@@ -237,7 +241,7 @@ def print_database(show_channel_id: bool = False):
 
       # if the database is empty, just return
       if not rows:
-        print("[DATABASE] Database empty")
+        log("[DATABASE] Database empty")
         return
 
       # set column spacing
@@ -320,7 +324,7 @@ def print_database(show_channel_id: bool = False):
           )
 
   except sqlite3.Error as e:
-    print(f"[DATABASE] Error trying to print database: {e}")
+    log(f"[DATABASE] Error trying to print database: {e}")
 
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":

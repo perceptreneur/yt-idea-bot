@@ -4,6 +4,7 @@ import json
 
 # local imports
 import database
+from utils import log
 
 # create datyabase and table (if it doesnt exists)
 database.init_db()
@@ -23,7 +24,7 @@ def main():
   for channel_id, config in channels.items():
     # get channel name
     channel = config['channel_name']
-    print(f"[LISTENER] Starting parse for channel [{channel}]")
+    log(f"[LISTENER] Starting parse for channel [{channel}]")
 
     # get rss feed for this channel ID
     feed_data = feedparser.parse(rss_base + channel_id)
@@ -31,7 +32,7 @@ def main():
     # if the feed is empty for some reason
     # ignore it and go to the next channel
     if not feed_data:
-      print(f"[LISTENER] Error: Couldn't get RSS data for channel [{channel}]")
+      log(f"[LISTENER] Error: Couldn't get RSS data for channel [{channel}]")
       continue
 
     # get channel name from rss feed
@@ -52,7 +53,6 @@ def main():
 
       # ignore all shorts
       if "shorts" in video.links[0].href:
-        print(f"[LISTENER] Skipped short [{video.title}] from [{video.author}]")
         continue
 
       # prepare data to database
