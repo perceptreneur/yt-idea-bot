@@ -43,13 +43,13 @@ def main():
     feed_data = feedparser.parse(rss_base + param + "=" + channel_id)
 
     # if the feed is empty for some reason
-# ignore it and go to the next channel
+    # ignore it and go to the next channel
     if not feed_data:
       log(f"[LISTENER] Error: Couldn't get RSS data for channel [{channel}]")
       continue
 
     # get channel name from rss feed
-    channel_name = feed_data.feed.author
+    channel_name = getattr(getattr(feed_data, "feed", None), "author", "Unknown")
     # start with empty list of videos
     video_list = []
 
