@@ -77,6 +77,8 @@ def fetch_youtube_comments(video_id: str, max_comments: int = 500) -> list[str]:
   # assume it has at least one page
   has_more_pages = True
 
+  log(f"[FETCHER] Fetching comments for video [{video_id}]")
+
   while has_more_pages:
     # get current amount of comments
     total_comments = len(comment_list)
@@ -106,9 +108,7 @@ def fetch_youtube_comments(video_id: str, max_comments: int = 500) -> list[str]:
     # if we have a next page
     if next_page_token:
       params["pageToken"] = next_page_token
-
-    log(f"[FETCHER] Fetching comments for video [{video_id}]")
-    
+  
     try:
       response = requests.get(url, params = params, timeout = 15)
 
