@@ -209,8 +209,9 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
     log(
       f"[FETCHER] Failed to analyze comments "
       f"with [{main_model}]: {error_one}. "
-      f"Trying again with [{fb_model_one}]"
     )
+
+    log(f"Trying again with [{fb_model_one}]")
 
     # wait 4 seconds just in case
     time.sleep(4.0)
@@ -236,8 +237,9 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
       log(
         f"[FETCHER] Failed to analyze comments "
         f"with [{fb_model_one}]: {error_two}. "
-        f"Trying again with [{fb_model_two}]"
       )
+
+      log(f"Trying again with [{fb_model_two}]")
 
       # wait 4 seconds just in case
       time.sleep(4.0)
