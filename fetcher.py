@@ -7,7 +7,6 @@ import argparse
 import requests
 from dotenv import load_dotenv
 from google import genai
-from google.genai import types
 
 # local imports
 import database
@@ -182,33 +181,27 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
   # TPM = Tokens Per Minute (Input)
   # RPD = Requests Per Day
 
-  # model list and parameters
+  # model list and configuration
   models = [
     {
       "name": "gemma-4-31b-it",
-      "params": { "temperature": 1.0, "top_p": 0.95, "top_k": 64 }
+      "config": { "temperature": 1.0, "top_p": 0.95, "top_k": 64 }
     },
     {
       "name": "gemma-4-26b-a4b-it",
-      "params": { "temperature": 1.0, "top_p": 0.95, "top_k": 64 }
+      "config": { "temperature": 1.0, "top_p": 0.95, "top_k": 64 }
     },
     {
       "name": "gemini-3.1-flash-lite",
-      "params": {
-        "thinking_config": types.ThinkingConfig(thinking_level = "medium")
-      }
+      "config": { "thinking_level": "medium" }
     },
     {
       "name": "gemini-3.5-flash",
-      "params": {
-         "thinking_config": types.ThinkingConfig(thinking_level = "medium")
-      }
+      "config": { "thinking_level": "medium" }
     },
     {
       "name": "gemini-3-flash-preview",
-      "params": {
-         "thinking_config": types.ThinkingConfig(thinking_level = "medium")
-      }
+      "config": { "thinking_level": "medium" }
     }
   ]
 
@@ -217,26 +210,21 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
   for attempt in models:
     # get model name
     model_name = attempt["name"]
-    # get params for that specific model
+    # get configs for that specific model
     # leave empty if it has none
-    model_params = attempt.get("params", {})
-
-    # set model configuration
-    model_config = types.GenerateContentConfig(
-      system_instruction = GEMINI_SYSTEM_PROMPT,
-      **model_params
-    )
+    model_config = attempt.get("config", {})
 
     try:
       # make request to gemini
-      response = client.models.generate_content(
+      interaction = client.interactions.create(
         model = model_name,
-        contents = message,
-        config = model_config
+        system_instruction = GEMINI_SYSTEM_PROMPT,
+        input = message,
+        generation_config = model_config
       )
 
       # returns the response from gemini
-      return response.text
+      return interaction.output_text
 
     except Exception as error:
       log(
@@ -260,7 +248,7 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
     f"with Gemini. All {model_list_size} models failed."
   )
 
-  # return network error (willl try again next time)
+  # return network error (will try again next time)
   return "NETWORK_ERROR"
 
 # sends the analysis to Discord
