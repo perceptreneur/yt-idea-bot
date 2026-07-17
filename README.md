@@ -69,16 +69,27 @@ In `get_expired_videos()` you can change the amount of time it waits to fetch th
 
 It's not unusual to get status `500` when trying to call the Gemini API. It uses the free tier, so it has high demand, limits and low priority. Servers can also be overloaded. 
 
-There is a fallback strategy to avoid videos piling up in the database due to constant status `500` errors. It first tries to use the dense `gemma4` model. If it fails, it tries the MoE version. If it fails again, then the `gemini 3.1 flash lite` model is used.
+There is a fallback strategy to avoid videos piling up in the database due to constant status `500` errors. It will try models from the free tier until it completes the request. After each fail, it will move on to the next model. The order is based on quota limits and model capabilities.
 
-In summary:
-```
-gemma-4-31b-it -> gemma-4-26b-a4b-it -> gemini-3.1-flash-lite
-```
+The attempts will follow this order:
 
-This way we can take advantage of the generous quota from both of the `gemma4` models first and if they fail, we use the quota from `gemini 3.1 flash lite`, which is smaller, but less prone to have status `500` errors.
+ | Model                  | RPM |  TPM |  RPD  |
+ |------------------------|-----|------|-------|
+ | gemma-4-31b-it         |  30 |  16k | 14.4k |
+ | gemma-4-26b-a4b-it     |  30 |  16k | 14.4k |
+ | gemini-3.1-flash-lite  |  15 | 250k |   500 |
+ | gemini-3.5-flash       |   5 | 250k |    20 |
+ | gemini-3-flash-preview |   5 | 250k |    20 |
+ 
+`RPM = Requests Per Minute`
 
-Videos that fail all three attempts to be processed will remain with the `WAITING` status and will be processed in the next cycle.
+`TPM = Tokens Per Minute (Input)`
+
+`RPD = Requests Per Day`
+
+This way we can take advantage of the generous quota from both of the `gemma4` models first and if they fail, we use the quota from `gemini 3` models, which are smaller, but less prone to have status `500` errors.
+
+Videos that fail all attempts to be processed will remain with the `WAITING` status and will be processed in the next cycle.
 
 ## Database
 
