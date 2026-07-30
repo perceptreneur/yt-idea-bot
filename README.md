@@ -73,13 +73,14 @@ There is a fallback strategy to avoid videos piling up in the database due to co
 
 The attempts will follow this order:
 
- | Model                  | RPM |  TPM |  RPD  |
- |------------------------|-----|------|-------|
- | gemma-4-31b-it         |  30 |  16k | 14.4k |
- | gemma-4-26b-a4b-it     |  30 |  16k | 14.4k |
- | gemini-3.1-flash-lite  |  15 | 250k |   500 |
- | gemini-3.5-flash       |   5 | 250k |    20 |
- | gemini-3-flash-preview |   5 | 250k |    20 |
+ | Model                 | RPM |  TPM  |  RPD  |
+ |-----------------------|-----|-------|-------|
+ | gemma-4-31b-it        |  30 |   16k | 14.4k |
+ | gemma-4-26b-a4b-it    |  30 |   16k | 14.4k |
+ | gemini-3.5-flash-lite |  15 |  250k |   500 |
+ | gemini-3.1-flash-lite |  15 |  250k |   500 |
+ | gemini-3.6-flash      |   5 |  250k |    20 |
+ | gemini-3.5-flash      |   5 |  250k |    20 |
  
 `RPM = Requests Per Minute`
 

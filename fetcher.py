@@ -170,13 +170,14 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
   # 
   # free quotas:
   #
-  # | Model                  | RPM |  TPM |  RPD  |
-  # |------------------------|-----|------|-------|
-  # | gemma-4-31b-it         |  30 |  16k | 14.4k |
-  # | gemma-4-26b-a4b-it     |  30 |  16k | 14.4k |
-  # | gemini-3.1-flash-lite  |  15 | 250k |   500 |
-  # | gemini-3.5-flash       |   5 | 250k |    20 |
-  # | gemini-3-flash-preview |   5 | 250k |    20 |
+  # | Model                 | RPM |  TPM  |  RPD  |
+  # |-----------------------|-----|-------|-------|
+  # | gemma-4-31b-it        |  30 |   16k | 14.4k |
+  # | gemma-4-26b-a4b-it    |  30 |   16k | 14.4k |
+  # | gemini-3.5-flash-lite |  15 |  250k |   500 |
+  # | gemini-3.1-flash-lite |  15 |  250k |   500 |
+  # | gemini-3.6-flash      |   5 |  250k |    20 |
+  # | gemini-3.5-flash      |   5 |  250k |    20 |
   # 
   # RPM = Requests Per Minute
   # TPM = Tokens Per Minute (Input)
@@ -193,19 +194,25 @@ def analyze_comments_with_gemini(comments: list[str], video_id: str) -> str:
       "params": { "temperature": 1.0, "top_p": 0.95, "top_k": 64 }
     },
     {
+      "name": "gemini-3.5-flash-lite",
+      "params": {
+        "thinking_config": types.ThinkingConfig(thinking_level = "medium")
+      }
+    },
+    {
       "name": "gemini-3.1-flash-lite",
       "params": {
         "thinking_config": types.ThinkingConfig(thinking_level = "medium")
       }
     },
     {
-      "name": "gemini-3.5-flash",
+      "name": "gemini-3.6-flash",
       "params": {
          "thinking_config": types.ThinkingConfig(thinking_level = "medium")
       }
     },
     {
-      "name": "gemini-3-flash-preview",
+      "name": "gemini-3.5-flash",
       "params": {
          "thinking_config": types.ThinkingConfig(thinking_level = "medium")
       }
