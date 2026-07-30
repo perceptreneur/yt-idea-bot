@@ -20,7 +20,7 @@ Automated tool that monitors YouTube channels via RSS, saves new videos metadata
 
 Install `uv`:
 ```bash
-curl -LsSf [https://astral.sh/uv/install.sh](https://astral.sh/uv/install.sh) | sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 Install python dependencies:
